@@ -5,7 +5,7 @@ from torch.utils.data import DataLoader
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-from data import SHRECTest, SHRECTest_witout
+from data import SurrealTest, SHRECTest, SHRECTest_witout
 from models import Net
 from tensorboardX import SummaryWriter
 from datetime import datetime
@@ -127,6 +127,38 @@ def test_with_tolerance_SHREC(net, test_loader, name=None):
     for idx, acc in enumerate(tolerance):
         print('tolerance_: %f, ACC: %f' % (tolerance[idx], (acc_with_tolerance[idx+1] / num_examples).item()))
 
+def visualize_match(src, tgt, corr):
+    tgt_tmp = tgt + 0.5 # shift target over so that the points arent on top of each other
+    import open3d as o3d
+
+    source_points = src[0]
+    target_points = tgt_tmp[0]
+    for i in range(tgt.shape[1]):
+        target_points[i] = tgt_tmp[0, corr[0, i]]
+
+    lines = []
+    k = 100
+    point = []
+    for i in range(k):
+        lines.append([2 * i, 2 * i + 1])
+        point.append(source_points[i].tolist())
+        point.append(target_points[i].tolist())
+
+    colors = [[1, 0, 0] for i in range(len(lines))]
+    line_set = o3d.geometry.LineSet(
+        points=o3d.utility.Vector3dVector(point),
+        lines=o3d.utility.Vector2iVector(lines),
+    )
+    # line_set.colors = o3d.utility.Vector3dVector(colors)
+    point1 = source_points.tolist()
+    pcd1 = o3d.geometry.PointCloud()
+    pcd1.points = o3d.utility.Vector3dVector(point1)
+
+    point2 = target_points.tolist()
+    pcd2 = o3d.geometry.PointCloud()
+    pcd2.points = o3d.utility.Vector3dVector(point2)
+    o3d.visualization.draw_geometries([line_set, pcd1, pcd2])
+
 
 def test_notolerance(net, test_loader, name=None):
     checkpoint_path = Path(cfg.OUTPUT_PATH) / 'resume'
@@ -149,9 +181,13 @@ def test_notolerance(net, test_loader, name=None):
         src = src.cuda()
         tgt = tgt.cuda()
         corr = corr.cuda()
+        #print(f"SOURCE: {src} \r\n TARGET: {tgt} \r\n CORR: {corr} \r\n SOURCE_SIZE: {src.size()} \r\n TARGET_SIZE: {tgt.size()} \r\n CORR_SIZE: {corr.size()}")
+        # print(corr.unique())
+        # raise Exception("STOP")
 
         p = net(src, tgt)
         corr_tensor = prob_to_corr_test(p)
+        visualize_match(src, tgt, corr_tensor.to(torch.bool))
         acc_000 = label_ACC_percentage_for_inference(corr_tensor, corr)
         print('Accuracy_tolerance_0:', acc_000.item())
         total_acc += acc_000.item()
@@ -170,16 +206,18 @@ if __name__ == '__main__':
     net = Net.Net()
     net.cuda()
 
-    test_loader = DataLoader(SHRECTest(), batch_size=cfg.DATASET.BATCH_SIZE)
-    test_loader_SHRECTest_witout = DataLoader(SHRECTest_witout(), batch_size=cfg.DATASET.BATCH_SIZE)
+    test_loader = DataLoader(SurrealTest(), batch_size = cfg.DATASET.BATCH_SIZE) #SHRECTest(), batch_size=cfg.DATASET.BATCH_SIZE)
+    # test_loader_SHRECTest_witout = DataLoader(SHRECTest_witout(), batch_size=cfg.DATASET.BATCH_SIZE)
 
     if cfg.TRAIN.OPTIM == "SGD":
         opt = optim.SGD(net.parameters(), lr=cfg.TRAIN.LR, momentum=cfg.TRAIN.MOMENTUM, weight_decay=1e-4, nesterov=True)
     if cfg.TRAIN.OPTIM == "Adam":
         opt = optim.Adam(net.parameters())
 
-    test_with_tolerance_SHREC(net, test_loader, "pretrained.pt")
+    test_notolerance(net, test_loader, "pretrained.pt")
 
-    test_notolerance(net, test_loader_SHRECTest_witout, "pretrained.pt")
+    # test_with_tolerance_SHREC(net, test_loader, "pretrained.pt")
+
+    # test_notolerance(net, test_loader_SHRECTest_witout, "pretrained.pt")
 
 

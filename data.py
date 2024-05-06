@@ -13,7 +13,7 @@ import os
 class SurrealTrain(Dataset):
     def __init__(self, size: Optional[int] = 5000):
         self.ratio_list = [0.02, 0.04, 0.06, 0.08, 0.10]
-        self.file_name = '/home/hot/PycharmProjects/non-rigid/dataset/trainset.h5'
+        self.file_name = 'dataset/trainset.h5'
         if not os.path.exists(self.file_name):
             self.file_name = '/data/home/scv0495/run/nonrigid/data/trainset.h5'
 
